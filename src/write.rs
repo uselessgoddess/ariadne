@@ -109,15 +109,20 @@ impl<S: Span> Report<'_, S> {
 
         // --- Header ---
 
-        let code = self.code.as_ref().map(|c| format!("[{}] ", c));
-        let id = format!("{}{}:", Show(code), self.kind);
+        let code = self.code.as_ref().map(|c| format!("[{}]", c));
+        let id = format!("{}{}", self.kind, Show(code));
         let kind_color = match self.kind {
             ReportKind::Error => self.config.error_color(),
             ReportKind::Warning => self.config.warning_color(),
             ReportKind::Advice => self.config.advice_color(),
             ReportKind::Custom(_, color) => Some(color),
         };
-        writeln!(w, "{} {}", id.fg(kind_color, s), Show(self.msg.as_ref()))?;
+        let label = format!(": {}", Show(self.msg.as_ref()));
+        if self.bold && <String as StreamAwareFmt>::color_enabled_for(s) {
+            writeln!(w, "{}{}", id.fg(kind_color, s), yansi::Paint::new(label).bold())?;
+        } else {
+            writeln!(w, "{}{}", id.fg(kind_color, s), label)?;
+        }
 
         let groups = self.get_source_groups(&mut cache);
 
@@ -539,7 +544,7 @@ impl<S: Span> Report<'_, S> {
                                     .map_or(true, |m| ll.label as *const _ != m.label as *const _)
                         })
                         .find(|(j, ll)| {
-                            ll.col == col && ((row <= *j && !ll.multi) || (row <= *j && ll.multi))
+                            ll.col == col && row <= *j
                         })
                         .map(|(_, ll)| ll)
                 };
@@ -630,7 +635,7 @@ impl<S: Span> Report<'_, S> {
                             let [c, tail] = if let Some(vbar_ll) = vbar {
                                 let [c, tail] = if underline.is_some() {
                                     // TODO: Is this good?
-                                    if vbar_ll.label.span.len() <= 1 || true {
+                                    if vbar_ll.label.span.len() <= 1 {
                                         [draw.underbar, draw.underline]
                                     } else if line.offset() + col == vbar_ll.label.span.start() {
                                         [draw.ltop, draw.underbar]
@@ -650,7 +655,12 @@ impl<S: Span> Report<'_, S> {
                                     tail.fg(vbar_ll.label.color, s),
                                 ]
                             } else if let Some(underline_ll) = underline {
-                                [draw.underline.fg(underline_ll.label.color, s); 2]
+                                let underline = if let Some(underline) = underline_ll.label.underline {
+                                    underline
+                                } else {
+                                    draw.underline
+                                };
+                                [underline.fg(underline_ll.label.color, s); 2]
                             } else {
                                 [' '.fg(None, s); 2]
                             };

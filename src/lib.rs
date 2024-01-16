@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
+#![allow(clippy::all)]
 
 mod source;
 mod display;
@@ -76,6 +77,7 @@ pub struct Label<S = Range<usize>> {
     color: Option<Color>,
     order: i32,
     priority: i32,
+    underline: Option<char>,
 }
 
 impl<S: Span> Label<S> {
@@ -97,6 +99,7 @@ impl<S: Span> Label<S> {
             color: None,
             order: 0,
             priority: 0,
+            underline: None,
         }
     }
 
@@ -140,6 +143,12 @@ impl<S: Span> Label<S> {
         self.priority = priority;
         self
     }
+
+    /// Specify underline character of this label
+    pub fn with_underline(mut self, underline: char) -> Self {
+        self.underline = Some(underline);
+        self
+    }
 }
 
 /// A type representing a diagnostic that is ready to be written to output.
@@ -152,6 +161,7 @@ pub struct Report<'a, S: Span = Range<usize>> {
     location: (<S::SourceId as ToOwned>::Owned, usize),
     labels: Vec<Label<S>>,
     config: Config,
+    bold: bool,
 }
 
 impl<S: Span> Report<'_, S> {
@@ -166,6 +176,7 @@ impl<S: Span> Report<'_, S> {
             location: (src_id.into(), offset),
             labels: Vec::new(),
             config: Config::default(),
+            bold: false,
         }
     }
 
@@ -231,9 +242,16 @@ pub struct ReportBuilder<'a, S: Span> {
     location: (<S::SourceId as ToOwned>::Owned, usize),
     labels: Vec<Label<S>>,
     config: Config,
+    bold: bool,
 }
 
 impl<'a, S: Span> ReportBuilder<'a, S> {
+    /// Set usage of bold report message
+    pub fn with_bold(mut self, bold: bool) -> Self {
+        self.bold = bold;
+        self
+    }
+
     /// Give this report a numerical code that may be used to more precisely look up the error in documentation.
     pub fn with_code<C: fmt::Display>(mut self, code: C) -> Self {
         self.code = Some(format!("{:02}", code));
@@ -313,6 +331,7 @@ impl<'a, S: Span> ReportBuilder<'a, S> {
             location: self.location,
             labels: self.labels,
             config: self.config,
+            bold: self.bold,
         }
     }
 }
@@ -326,6 +345,7 @@ impl<'a, S: Span> fmt::Debug for ReportBuilder<'a, S> {
             .field("note", &self.note)
             .field("help", &self.help)
             .field("config", &self.config)
+            .field("bold", &self.bold)
             .finish()
     }
 }
@@ -439,6 +459,7 @@ impl Default for Config {
 
 #[test]
 #[should_panic]
+#[allow(clippy::reversed_empty_ranges)]
 fn backwards_label_should_panic() {
     Label::new(1..0);
 }
